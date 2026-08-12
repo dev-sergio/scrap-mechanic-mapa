@@ -12,6 +12,16 @@ dotnet run --project .\src\ScrapMap.Desktop\ScrapMap.Desktop.csproj -c Release
 
 Também é possível abrir diretamente `src\ScrapMap.Desktop\bin\Release\net8.0-windows\ScrapMap.Desktop.exe` depois da compilação.
 
+## Abrir em outros computadores da rede
+
+Enquanto o aplicativo desktop estiver aberto, ele hospeda a mesma visualização por HTTP na rede local. O endereço aparece abaixo do seletor de save, por exemplo `http://192.168.0.103:51873`; clique nele para copiar e abra-o em outro computador ou celular conectado à mesma rede.
+
+- desktop e navegador usam o mesmo gerador de mapa, terreno e filtros;
+- ao atualizar o mapa no desktop, os navegadores recarregam automaticamente e preservam zoom e camadas sempre que possível;
+- nenhuma instalação é necessária nos outros dispositivos;
+- se o Firewall do Windows solicitar permissão, autorize o aplicativo em **redes privadas**;
+- qualquer pessoa na mesma rede que conheça o endereço poderá visualizar o mapa enquanto o desktop estiver aberto.
+
 ## O que já funciona
 
 - detecção automática dos saves Survival;

@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
 using Microsoft.Web.WebView2.Core;
@@ -22,6 +23,8 @@ public partial class MainWindow : Window
     };
 
     private UuidCatalog? _uuidCatalog;
+    private LanMapHost? _lanMapHost;
+    private string? _lanUrl;
     private SaveFileStamp? _lastSaveStamp;
     private bool _isInitialized;
     private bool _isLoading;
@@ -30,7 +33,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += MainWindow_OnLoaded;
-        Closed += (_, _) => _autoRefreshTimer.Stop();
+        Closed += MainWindow_OnClosed;
         _autoRefreshTimer.Tick += AutoRefreshTimer_OnTick;
     }
 
@@ -39,6 +42,7 @@ public partial class MainWindow : Window
         try
         {
             ShowLoading("Localizando saves e dados do jogo…");
+            await StartLanHostAsync();
             var gameRoot = GameLocator.FindInstallation();
             _uuidCatalog = await Task.Run(() => UuidCatalog.Load(gameRoot));
 
@@ -59,6 +63,7 @@ public partial class MainWindow : Window
                 _isInitialized = true;
                 StatusText.Text = "Nenhum save Survival foi encontrado.";
                 MapView.NavigateToString(MapHtmlBuilder.BuildEmpty("Nenhum save Survival encontrado"));
+                _lanMapHost?.PublishEmpty("Nenhum save Survival encontrado");
                 return;
             }
 
@@ -98,6 +103,7 @@ public partial class MainWindow : Window
             snapshot = snapshot with { SavePath = selected.File.FullName };
             var terrain = TerrainOverlayLoader.TryLoad(snapshot.Game.Seed);
             MapView.NavigateToString(MapHtmlBuilder.Build(snapshot, terrain, viewState));
+            _lanMapHost?.Publish(snapshot, terrain);
             _lastSaveStamp = SaveFileStamp.Read(selected.File.FullName);
             var terrainStatus = terrain is null
                 ? "terreno não extraído"
@@ -172,6 +178,39 @@ public partial class MainWindow : Window
         await LoadSelectedSaveAsync(preserveMapState: false, suppressErrors: false);
     }
 
+    private async Task StartLanHostAsync()
+    {
+        try
+        {
+            _lanMapHost = await LanMapHost.StartAsync();
+            _lanUrl = _lanMapHost.PrimaryUrl;
+            LanUrlText.Text = $"Rede local: {_lanUrl}  ·  clique para copiar";
+            LanUrlText.ToolTip = _lanMapHost.NetworkUrls.Count > 0
+                ? "Endereços disponíveis:\n" + string.Join("\n", _lanMapHost.NetworkUrls)
+                : "Somente este computador encontrou o servidor local.";
+        }
+        catch (Exception exception)
+        {
+            LanUrlText.Text = "Rede local: indisponível";
+            LanUrlText.ToolTip = exception.Message;
+        }
+    }
+
+    private void LanUrlText_OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lanUrl)) return;
+        Clipboard.SetText(_lanUrl);
+        StatusText.Text = $"Link de rede copiado: {_lanUrl}";
+    }
+
+    private async void MainWindow_OnClosed(object? sender, EventArgs e)
+    {
+        _autoRefreshTimer.Stop();
+        if (_lanMapHost is null) return;
+        await _lanMapHost.DisposeAsync();
+        _lanMapHost = null;
+    }
+
     private void ShowLoading(string message)
     {
         LoadingText.Text = message;
@@ -195,6 +234,7 @@ public partial class MainWindow : Window
         if (_isInitialized && replaceMap)
         {
             MapView.NavigateToString(MapHtmlBuilder.BuildEmpty("Erro ao ler o save", exception.Message));
+            _lanMapHost?.PublishEmpty("Erro ao ler o save", exception.Message);
         }
         MessageBox.Show(this, exception.Message, "ScrapMap", MessageBoxButton.OK, MessageBoxImage.Error);
     }

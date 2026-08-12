@@ -32,12 +32,20 @@
                     <TextBlock Text="Mapa do seu mundo Survival" FontSize="11" Foreground="{StaticResource SecondaryText}" />
                 </StackPanel>
 
-                <ComboBox x:Name="SaveComboBox"
-                          Grid.Column="2"
-                          MinWidth="360"
-                          VerticalAlignment="Center"
-                          DisplayMemberPath="DisplayName"
-                          SelectionChanged="SaveComboBox_OnSelectionChanged" />
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <ComboBox x:Name="SaveComboBox"
+                              MinWidth="360"
+                              DisplayMemberPath="DisplayName"
+                              SelectionChanged="SaveComboBox_OnSelectionChanged" />
+                    <TextBlock x:Name="LanUrlText"
+                               Margin="2,5,0,0"
+                               FontSize="11"
+                               Foreground="{StaticResource Accent}"
+                               Cursor="Hand"
+                               Text="Rede local: iniciando…"
+                               ToolTip="Clique para copiar o endereço"
+                               MouseLeftButtonUp="LanUrlText_OnMouseLeftButtonUp" />
+                </StackPanel>
 
                 <Button x:Name="RefreshButton"
                         Grid.Column="6"

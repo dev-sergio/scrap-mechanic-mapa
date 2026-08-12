@@ -7,18 +7,38 @@ namespace ScrapMap.Desktop;
 
 internal static class MapHtmlBuilder
 {
+    private const string DesktopAssetBaseUrl = "https://appassets.scrapmap";
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public static string Build(WorldSnapshot snapshot, TerrainOverlayData? terrain, MapViewState? viewState = null)
+    public static string Build(
+        WorldSnapshot snapshot,
+        TerrainOverlayData? terrain,
+        MapViewState? viewState = null,
+        string assetBaseUrl = DesktopAssetBaseUrl,
+        long? hostRevision = null)
     {
+        var terrainPayload = terrain is null ? null : new
+        {
+            worldUrl = CombineUrl(assetBaseUrl, terrain.WorldAssetPath),
+            terrain.Width,
+            terrain.Height,
+            terrain.CellPixelSize,
+            terrain.WorldXMin,
+            terrain.WorldXMax,
+            terrain.WorldYMin,
+            terrain.WorldYMax,
+            terrain.WorldCellCount
+        };
         var payload = new
         {
             saveName = Path.GetFileNameWithoutExtension(snapshot.SavePath),
             game = snapshot.Game,
-            terrain,
+            terrain = terrainPayload,
+            hostRevision,
             initialState = viewState,
             exploredCells = snapshot.ExploredCells,
             resources = snapshot.Resources.Select(resource => new
@@ -48,13 +68,15 @@ internal static class MapHtmlBuilder
         };
 
         var json = JsonSerializer.Serialize(payload, JsonOptions).Replace("</script", "<\\/script", StringComparison.OrdinalIgnoreCase);
+        var leafletCssUrl = CombineUrl(assetBaseUrl, "/Assets/Web/leaflet.css");
+        var leafletScriptUrl = CombineUrl(assetBaseUrl, "/Assets/Web/leaflet.js");
         return $$"""
             <!doctype html>
             <html lang="pt-BR">
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width,initial-scale=1">
-              <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+              <link rel="stylesheet" href="{{leafletCssUrl}}">
               <style>
                 :root { color-scheme: dark; font-family: "Segoe UI", sans-serif; }
                 html, body, #map { width: 100%; height: 100%; margin: 0; background: #101419; }
@@ -102,9 +124,15 @@ internal static class MapHtmlBuilder
                 </div>
               </section>
               <div class="coords" id="coords">X — · Y —</div>
-              <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+              <script src="{{leafletScriptUrl}}"></script>
               <script>
                 const world = {{json}};
+                if (world.hostRevision !== null) {
+                  try {
+                    const savedState = localStorage.getItem('scrapMapLanState');
+                    if (savedState) world.initialState = JSON.parse(savedState);
+                  } catch { }
+                }
                 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
                 const number = value => Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
                 const map = L.map('map', {
@@ -342,24 +370,53 @@ internal static class MapHtmlBuilder
                     baseLayer: activeBaseLayerName
                   };
                 };
+
+                if (world.hostRevision !== null) {
+                  const persistLanState = () => {
+                    try {
+                      localStorage.setItem('scrapMapLanState', JSON.stringify(window.scrapMapGetState()));
+                    } catch { }
+                  };
+                  map.on('moveend zoomend overlayadd overlayremove baselayerchange', persistLanState);
+                  window.addEventListener('beforeunload', persistLanState);
+                  window.setInterval(async () => {
+                    try {
+                      const response = await fetch('/api/revision', { cache: 'no-store' });
+                      if (!response.ok) return;
+                      const status = await response.json();
+                      if (status.revision !== world.hostRevision) {
+                        persistLanState();
+                        window.location.reload();
+                      }
+                    } catch { }
+                  }, 2500);
+                }
               </script>
             </body>
             </html>
             """;
     }
 
-    public static string BuildEmpty(string title, string? detail = null)
+    public static string BuildEmpty(string title, string? detail = null, bool waitForLanMap = false)
     {
         var safeTitle = WebUtility.HtmlEncode(title);
         var safeDetail = WebUtility.HtmlEncode(detail ?? "Abra o Scrap Mechanic e crie um mundo Survival primeiro.");
+        var reloadScript = waitForLanMap
+            ? "<script>setInterval(async()=>{try{const r=await fetch('/api/revision',{cache:'no-store'});const s=await r.json();if(s.revision>0)location.reload()}catch{}},1500)</script>"
+            : string.Empty;
         return $$"""
             <!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><style>
             html,body{height:100%;margin:0;background:#101419;color:#f2f4f6;font-family:"Segoe UI",sans-serif}
             body{display:grid;place-items:center}.box{text-align:center;max-width:600px;padding:40px}
             h1{color:#f5a524}p{color:#9da9b5;line-height:1.6}
-            </style></head><body><div class="box"><h1>{{safeTitle}}</h1><p>{{safeDetail}}</p></div></body></html>
+            </style></head><body><div class="box"><h1>{{safeTitle}}</h1><p>{{safeDetail}}</p></div>{{reloadScript}}</body></html>
             """;
     }
+
+    private static string CombineUrl(string baseUrl, string path) =>
+        string.IsNullOrWhiteSpace(baseUrl)
+            ? path
+            : $"{baseUrl.TrimEnd('/')}/{path.TrimStart('/')}";
 }
 
 internal sealed record MapViewState(MapCenter Center, double Zoom, IReadOnlyList<string> ActiveLayers, string? BaseLayer = null);

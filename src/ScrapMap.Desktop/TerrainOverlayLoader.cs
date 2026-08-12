@@ -5,8 +5,6 @@ namespace ScrapMap.Desktop;
 
 internal static class TerrainOverlayLoader
 {
-    private const string AssetHost = "https://appassets.scrapmap";
-
     public static TerrainOverlayData? TryLoad(int seed)
     {
         var assetDirectory = Path.Combine(AppContext.BaseDirectory, "Assets", "Terrain");
@@ -28,7 +26,7 @@ internal static class TerrainOverlayLoader
             if (width <= 0 || height <= 0 || cellPixelSize <= 0) return null;
 
             return new TerrainOverlayData(
-                $"{AssetHost}/Assets/Terrain/{seed}-world.png",
+                $"/Assets/Terrain/{seed}-world.png",
                 width,
                 height,
                 cellPixelSize,
@@ -50,7 +48,7 @@ internal static class TerrainOverlayLoader
 }
 
 internal sealed record TerrainOverlayData(
-    string WorldUrl,
+    string WorldAssetPath,
     int Width,
     int Height,
     int CellPixelSize,
