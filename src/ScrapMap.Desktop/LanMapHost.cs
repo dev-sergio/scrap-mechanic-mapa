@@ -24,6 +24,8 @@ internal sealed class LanMapHost : IAsyncDisposable
         "A versão desktop ainda está carregando o save.",
         waitForLanMap: true);
     private long _revision;
+    private long _stateRevision;
+    private MapViewState? _mirroredState;
 
     private LanMapHost(WebApplication application, int port)
     {
@@ -74,16 +76,28 @@ internal sealed class LanMapHost : IAsyncDisposable
     public void Publish(WorldSnapshot snapshot, TerrainOverlayData? terrain)
     {
         var nextRevision = Interlocked.Read(ref _revision) + 1;
+        MapViewState? mirroredState;
+        lock (_contentLock) mirroredState = _mirroredState;
         var html = MapHtmlBuilder.Build(
             snapshot,
             terrain,
-            viewState: null,
+            viewState: mirroredState,
             assetBaseUrl: string.Empty,
-            hostRevision: nextRevision);
+            hostRevision: nextRevision,
+            presentationMode: true);
         lock (_contentLock)
         {
             _html = html;
             Interlocked.Exchange(ref _revision, nextRevision);
+        }
+    }
+
+    public void UpdateViewState(MapViewState state)
+    {
+        lock (_contentLock)
+        {
+            _mirroredState = state;
+            _stateRevision++;
         }
     }
 
@@ -132,6 +146,19 @@ internal sealed class LanMapHost : IAsyncDisposable
         {
             context.Response.Headers.CacheControl = "no-store";
             return Results.Json(new { revision = Interlocked.Read(ref _revision) });
+        });
+        _application.MapGet("/api/status", (HttpContext context) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            lock (_contentLock)
+            {
+                return Results.Json(new
+                {
+                    revision = _revision,
+                    stateRevision = _stateRevision,
+                    state = _mirroredState
+                });
+            }
         });
         _application.MapGet("/favicon.ico", () => Results.NoContent());
     }

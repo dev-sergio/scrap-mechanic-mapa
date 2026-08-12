@@ -16,8 +16,10 @@ Também é possível abrir diretamente `src\ScrapMap.Desktop\bin\Release\net8.0-
 
 Enquanto o aplicativo desktop estiver aberto, ele hospeda a mesma visualização por HTTP na rede local. O endereço aparece abaixo do seletor de save, por exemplo `http://192.168.0.103:51873`; clique nele para copiar e abra-o em outro computador ou celular conectado à mesma rede.
 
-- desktop e navegador usam o mesmo gerador de mapa, terreno e filtros;
-- ao atualizar o mapa no desktop, os navegadores recarregam automaticamente e preservam zoom e camadas sempre que possível;
+- desktop e navegador usam o mesmo gerador de mapa e terreno;
+- o navegador mostra somente o mapa e as coordenadas, sem cabeçalho, seletor de camadas ou botões de zoom;
+- o terreno e as camadas marcadas na versão desktop são refletidos automaticamente nos navegadores abertos;
+- zoom e deslocamento permanecem independentes em cada navegador, enquanto uma atualização do save recarrega os dados automaticamente;
 - nenhuma instalação é necessária nos outros dispositivos;
 - se o Firewall do Windows solicitar permissão, autorize o aplicativo em **redes privadas**;
 - qualquer pessoa na mesma rede que conheça o endereço poderá visualizar o mapa enquanto o desktop estiver aberto.

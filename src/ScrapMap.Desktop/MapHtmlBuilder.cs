@@ -19,7 +19,9 @@ internal static class MapHtmlBuilder
         TerrainOverlayData? terrain,
         MapViewState? viewState = null,
         string assetBaseUrl = DesktopAssetBaseUrl,
-        long? hostRevision = null)
+        long? hostRevision = null,
+        bool presentationMode = false,
+        bool reportStateChanges = false)
     {
         var terrainPayload = terrain is null ? null : new
         {
@@ -39,6 +41,7 @@ internal static class MapHtmlBuilder
             game = snapshot.Game,
             terrain = terrainPayload,
             hostRevision,
+            reportStateChanges,
             initialState = viewState,
             exploredCells = snapshot.ExploredCells,
             resources = snapshot.Resources.Select(resource => new
@@ -109,9 +112,12 @@ internal static class MapHtmlBuilder
                 .popup-line { color: #cbd4dc; line-height: 1.5; }
                 .popup-parts { max-width: 300px; margin-top: 7px; color: #9da9b5; font-size: 11px; }
                 .grid-label { color: #566676; background: transparent; border: 0; box-shadow: none; font: 10px Consolas; }
+                body.presentation .hud,
+                body.presentation .leaflet-control-layers,
+                body.presentation .leaflet-control-zoom { display: none !important; }
               </style>
             </head>
-            <body>
+            <body class="{{(presentationMode ? "presentation" : string.Empty)}}">
               <div id="map"></div>
               <section class="hud">
                 <h1 id="worldName"></h1>
@@ -127,12 +133,6 @@ internal static class MapHtmlBuilder
               <script src="{{leafletScriptUrl}}"></script>
               <script>
                 const world = {{json}};
-                if (world.hostRevision !== null) {
-                  try {
-                    const savedState = localStorage.getItem('scrapMapLanState');
-                    if (savedState) world.initialState = JSON.parse(savedState);
-                  } catch { }
-                }
                 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
                 const number = value => Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
                 const map = L.map('map', {
@@ -371,25 +371,58 @@ internal static class MapHtmlBuilder
                   };
                 };
 
-                if (world.hostRevision !== null) {
-                  const persistLanState = () => {
-                    try {
-                      localStorage.setItem('scrapMapLanState', JSON.stringify(window.scrapMapGetState()));
-                    } catch { }
+                const normalizedLayerName = label => label.replace(/\s+\([^)]*\)$/, '');
+                const applyMirroredState = state => {
+                  if (!state) return;
+                  if (state.baseLayer && baseLayers[state.baseLayer] && state.baseLayer !== activeBaseLayerName) {
+                    for (const layer of Object.values(baseLayers)) {
+                      if (map.hasLayer(layer)) map.removeLayer(layer);
+                    }
+                    baseLayers[state.baseLayer].addTo(map);
+                    activeBaseLayerName = state.baseLayer;
+                    updateScopeNote(activeBaseLayerName);
+                  }
+
+                  const desiredLayers = new Set(state.activeLayers ?? []);
+                  for (const [label, layer] of Object.entries(overlays)) {
+                    const shouldBeVisible = desiredLayers.has(normalizedLayerName(label));
+                    if (shouldBeVisible && !map.hasLayer(layer)) layer.addTo(map);
+                    if (!shouldBeVisible && map.hasLayer(layer)) map.removeLayer(layer);
+                  }
+                };
+
+                if (world.reportStateChanges && window.chrome?.webview) {
+                  let reportTimer = null;
+                  const reportMapState = () => {
+                    clearTimeout(reportTimer);
+                    reportTimer = setTimeout(() => {
+                      window.chrome.webview.postMessage({
+                        type: 'map-state',
+                        state: window.scrapMapGetState()
+                      });
+                    }, 100);
                   };
-                  map.on('moveend zoomend overlayadd overlayremove baselayerchange', persistLanState);
-                  window.addEventListener('beforeunload', persistLanState);
+                  map.on('moveend zoomend overlayadd overlayremove baselayerchange', reportMapState);
+                  reportMapState();
+                }
+
+                if (world.hostRevision !== null) {
+                  let mirroredStateRevision = -1;
                   window.setInterval(async () => {
                     try {
-                      const response = await fetch('/api/revision', { cache: 'no-store' });
+                      const response = await fetch('/api/status', { cache: 'no-store' });
                       if (!response.ok) return;
                       const status = await response.json();
                       if (status.revision !== world.hostRevision) {
-                        persistLanState();
                         window.location.reload();
+                        return;
+                      }
+                      if (status.stateRevision !== mirroredStateRevision) {
+                        mirroredStateRevision = status.stateRevision;
+                        applyMirroredState(status.state);
                       }
                     } catch { }
-                  }, 2500);
+                  }, 500);
                 }
               </script>
             </body>

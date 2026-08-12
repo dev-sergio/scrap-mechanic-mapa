@@ -55,6 +55,7 @@ public partial class MainWindow : Window
             await MapView.EnsureCoreWebView2Async();
             MapView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             MapView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            MapView.CoreWebView2.WebMessageReceived += MapView_OnWebMessageReceived;
             MapView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 "appassets.scrapmap",
                 AppContext.BaseDirectory,
@@ -109,7 +110,11 @@ public partial class MainWindow : Window
             var snapshot = await reader.ReadAsync(safeSnapshot.DatabasePath);
             snapshot = snapshot with { SavePath = selected.File.FullName };
             var terrain = TerrainOverlayLoader.TryLoad(snapshot.Game.Seed);
-            MapView.NavigateToString(MapHtmlBuilder.Build(snapshot, terrain, viewState));
+            MapView.NavigateToString(MapHtmlBuilder.Build(
+                snapshot,
+                terrain,
+                viewState,
+                reportStateChanges: true));
             _lanMapHost?.Publish(snapshot, terrain);
             _lastSaveStamp = SaveFileStamp.Read(selected.File.FullName);
             var terrainStatus = terrain is null
@@ -156,6 +161,28 @@ public partial class MainWindow : Window
         catch
         {
             return null;
+        }
+    }
+
+    private void MapView_OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            using var message = JsonDocument.Parse(e.WebMessageAsJson);
+            var root = message.RootElement;
+            if (!root.TryGetProperty("type", out var type)
+                || type.GetString() != "map-state"
+                || !root.TryGetProperty("state", out var stateElement))
+            {
+                return;
+            }
+
+            var state = JsonSerializer.Deserialize<MapViewState>(stateElement.GetRawText(), StateJsonOptions);
+            if (state is not null) _lanMapHost?.UpdateViewState(state);
+        }
+        catch (JsonException)
+        {
+            // Ignore malformed messages from the embedded page.
         }
     }
 
