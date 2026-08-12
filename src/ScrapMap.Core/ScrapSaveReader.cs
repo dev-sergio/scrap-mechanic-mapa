@@ -19,7 +19,8 @@ public sealed class ScrapSaveReader
         {
             DataSource = fullPath,
             Mode = SqliteOpenMode.ReadOnly,
-            Cache = SqliteCacheMode.Private
+            Cache = SqliteCacheMode.Private,
+            Pooling = false
         }.ToString();
 
         await using var connection = new SqliteConnection(connectionString);

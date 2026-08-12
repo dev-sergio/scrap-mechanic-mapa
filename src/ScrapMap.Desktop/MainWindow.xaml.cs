@@ -19,7 +19,7 @@ public partial class MainWindow : Window
 
     private readonly DispatcherTimer _autoRefreshTimer = new()
     {
-        Interval = TimeSpan.FromSeconds(2)
+        Interval = TimeSpan.FromSeconds(1)
     };
 
     private UuidCatalog? _uuidCatalog;
@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private SaveFileStamp? _lastSaveStamp;
     private bool _isInitialized;
     private bool _isLoading;
+    private DateTime _nextAutomaticCheckUtc = DateTime.MinValue;
 
     public MainWindow()
     {
@@ -82,7 +83,10 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task LoadSelectedSaveAsync(bool preserveMapState, bool suppressErrors)
+    private async Task LoadSelectedSaveAsync(
+        bool preserveMapState,
+        bool suppressErrors,
+        bool automaticRefresh = false)
     {
         if (!_isInitialized
             || _isLoading
@@ -97,7 +101,10 @@ public partial class MainWindow : Window
         ShowLoading($"Lendo {selected.File.Name}…");
         try
         {
-            using var safeSnapshot = await SafeSaveSnapshot.CreateAsync(selected.File.FullName);
+            var stablePeriod = automaticRefresh ? TimeSpan.FromSeconds(3) : TimeSpan.FromSeconds(1);
+            using var safeSnapshot = await SafeSaveSnapshot.CreateAsync(
+                selected.File.FullName,
+                minimumStablePeriod: stablePeriod);
             var reader = new ScrapSaveReader(_uuidCatalog);
             var snapshot = await reader.ReadAsync(safeSnapshot.DatabasePath);
             snapshot = snapshot with { SavePath = selected.File.FullName };
@@ -156,15 +163,22 @@ public partial class MainWindow : Window
     {
         if (AutoRefreshCheckBox.IsChecked != true
             || _isLoading
-            || SaveComboBox.SelectedItem is not SaveOption selected)
+            || SaveComboBox.SelectedItem is not SaveOption selected
+            || DateTime.UtcNow < _nextAutomaticCheckUtc)
         {
             return;
         }
 
+        _nextAutomaticCheckUtc = DateTime.UtcNow + GetAutomaticRefreshInterval();
+
         var currentStamp = SaveFileStamp.Read(selected.File.FullName);
         if (_lastSaveStamp is not null && currentStamp != _lastSaveStamp)
         {
-            await LoadSelectedSaveAsync(preserveMapState: true, suppressErrors: true);
+            StatusText.Text = "Alteração detectada; aguardando o save estabilizar para criar uma cópia segura…";
+            await LoadSelectedSaveAsync(
+                preserveMapState: true,
+                suppressErrors: true,
+                automaticRefresh: true);
         }
     }
 
@@ -176,6 +190,17 @@ public partial class MainWindow : Window
         if (!_isInitialized) return;
         _lastSaveStamp = null;
         await LoadSelectedSaveAsync(preserveMapState: false, suppressErrors: false);
+    }
+
+    private TimeSpan GetAutomaticRefreshInterval()
+    {
+        if (AutoRefreshIntervalComboBox.SelectedItem is ComboBoxItem item
+            && double.TryParse(Convert.ToString(item.Tag), out var seconds))
+        {
+            return TimeSpan.FromSeconds(Math.Max(15, seconds));
+        }
+
+        return TimeSpan.FromSeconds(15);
     }
 
     private async Task StartLanHostAsync()
@@ -218,6 +243,7 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = false;
         SaveComboBox.IsEnabled = false;
         AutoRefreshCheckBox.IsEnabled = false;
+        AutoRefreshIntervalComboBox.IsEnabled = false;
     }
 
     private void HideLoading()
@@ -226,6 +252,7 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = true;
         SaveComboBox.IsEnabled = true;
         AutoRefreshCheckBox.IsEnabled = true;
+        AutoRefreshIntervalComboBox.IsEnabled = true;
     }
 
     private void ShowError(Exception exception, bool replaceMap)
@@ -257,7 +284,13 @@ public partial class MainWindow : Window
             var database = ReadPart(savePath);
             var wal = ReadPart(savePath + "-wal");
             var journal = ReadPart(savePath + "-journal");
-            return new SaveFileStamp(database.Ticks, database.Length, wal.Ticks, wal.Length, journal.Ticks, journal.Length);
+            return new SaveFileStamp(
+                database.Ticks,
+                database.Length,
+                wal.Ticks,
+                wal.Length,
+                journal.Ticks,
+                journal.Length);
         }
 
         private static (long Ticks, long Length) ReadPart(string path)

@@ -33,7 +33,8 @@ Enquanto o aplicativo desktop estiver aberto, ele hospeda a mesma visualização
 - camadas independentes para árvores, pedras, milho, flores, mariscos, petróleo, colmeias e suprimentos;
 - todas as camadas de marcadores começam desligadas;
 - leitura por snapshot temporário estável, sem abrir o SQLite original do jogo;
-- atualização automática experimental, desligada por padrão, preservando zoom e camadas escolhidas;
+- atualização automática segura, desligada por padrão, com intervalo selecionável entre 15 segundos e 5 minutos;
+- espera de estabilidade e validação do snapshot antes de substituir o mapa;
 - catálogo automático de UUIDs a partir dos Lua, `.harvestableset`, `.shapeset` e JSON instalados com o jogo;
 - localização de construções, peças soltas, nave inicial e veículos;
 - agrupamento de rodas/suspensões/corpos ligados por joints em uma única criação;
@@ -42,6 +43,10 @@ Enquanto o aplicativo desktop estiver aberto, ele hospeda a mesma visualização
 O terreno incluído atualmente corresponde ao seed `599604130` e cobre o mundo completo de 144×112 células. O jogo não armazena uma trilha GPS do jogador; por isso, **Área registrada no save** usa as células persistidas como aproximação do que já foi visitado. A atualização dos recursos e construções continua sendo feita pelo botão **Atualizar mapa** usando um snapshot seguro do save.
 
 O raster de altura, materiais e água foi gerado a partir dos arquivos instalados do jogo com o renderizador MIT [parrotlive/ScrapMap](https://github.com/parrotlive/ScrapMap). Os filtros, fog-of-war, leitura de recursos e interface permanecem implementados neste projeto.
+
+### Segurança da atualização automática
+
+O leitor SQLite nunca recebe o caminho do save original. A atualização apenas consulta tamanho e data dos arquivos para detectar mudanças; depois aguarda três segundos sem alterações e copia `.db`, `-wal` e `-journal` com compartilhamento de leitura/escrita habilitado. O `-shm`, por ser memória compartilhada transitória do SQLite, não é copiado. Recuperação do WAL, `integrity_check` e leitura dos dados acontecem exclusivamente dentro do snapshot temporário. Se o conjunto mudar durante a cópia ou falhar na validação, ele é descartado e o mapa atual permanece aberto.
 
 ## Estrutura
 

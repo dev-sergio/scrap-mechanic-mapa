@@ -23,6 +23,8 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="18" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -48,7 +50,7 @@
                 </StackPanel>
 
                 <Button x:Name="RefreshButton"
-                        Grid.Column="6"
+                        Grid.Column="8"
                         VerticalAlignment="Center"
                         Content="Atualizar mapa"
                         Click="RefreshButton_OnClick" />
@@ -58,8 +60,21 @@
                           VerticalAlignment="Center"
                           IsChecked="False"
                           Foreground="{StaticResource PrimaryText}"
-                          Content="Atualização automática (experimental)"
-                          ToolTip="Desligada por segurança. Quando ativada, lê snapshots do save sem abrir o banco original." />
+                          Content="Atualização automática"
+                          ToolTip="Aguarda o save estabilizar, cria uma cópia privada e abre somente essa cópia." />
+
+                <ComboBox x:Name="AutoRefreshIntervalComboBox"
+                          Grid.Column="6"
+                          Width="92"
+                          VerticalAlignment="Center"
+                          SelectedValuePath="Tag"
+                          ToolTip="Intervalo mínimo entre verificações automáticas">
+                    <ComboBoxItem Content="15 s" Tag="15" IsSelected="True" />
+                    <ComboBoxItem Content="30 s" Tag="30" />
+                    <ComboBoxItem Content="60 s" Tag="60" />
+                    <ComboBoxItem Content="2 min" Tag="120" />
+                    <ComboBoxItem Content="5 min" Tag="300" />
+                </ComboBox>
             </Grid>
         </Border>
 
