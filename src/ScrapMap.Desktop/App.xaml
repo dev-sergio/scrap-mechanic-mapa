@@ -1,0 +1,52 @@
+<Application x:Class="ScrapMap.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="AppBackground" Color="#101419" />
+        <SolidColorBrush x:Key="PanelBackground" Color="#192027" />
+        <SolidColorBrush x:Key="PrimaryText" Color="#F2F4F6" />
+        <SolidColorBrush x:Key="SecondaryText" Color="#9DA9B5" />
+        <SolidColorBrush x:Key="Accent" Color="#F5A524" />
+
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource AppBackground}" />
+            <Setter Property="Foreground" Value="{StaticResource PrimaryText}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="Foreground" Value="#151515" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="18,8" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#262F38" />
+            <!-- The native closed ComboBox surface is light on some Windows themes. -->
+            <Setter Property="Foreground" Value="#151515" />
+            <Setter Property="BorderBrush" Value="#3A4652" />
+            <Setter Property="Padding" Value="8,6" />
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#262F38" />
+            <Setter Property="Foreground" Value="#F2F4F6" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#3A4652" />
+                    <Setter Property="Foreground" Value="#FFFFFF" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#F5A524" />
+                    <Setter Property="Foreground" Value="#151515" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Application.Resources>
+</Application>

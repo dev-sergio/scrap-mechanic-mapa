@@ -1,0 +1,9 @@
+{
+  "width": 4608,
+  "height": 3584,
+  "cellPixelSize": 32,
+  "worldXMin": -72,
+  "worldXMax": 71,
+  "worldYMin": -56,
+  "worldYMax": 55
+}
